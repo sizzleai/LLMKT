@@ -9,4 +9,4 @@
 Our data inherits the terms of use of CMU datashop (https://pslcdatashop.web.cmu.edu/Terms).
 
 # Running environment.
-We conducted this experiment on an M3 MacBook Pro with 36GB of shared memory. 
+We conducted this experiment on an M3 MacBook Pro with 36GB of shared memory. The experiments were conducted only once with the seed fixed on the code, and the seeds were not optimized for better results.
