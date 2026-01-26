@@ -227,7 +227,7 @@ def extract_questions(data_root, file_path, soup, valid_problems):
                 else:
                     print(f"Question {qid} of Problem {problem_name} is not matched with feedback.")
                     continue
-                    # raise ValueError('shit')
+
                     
 
             else:
