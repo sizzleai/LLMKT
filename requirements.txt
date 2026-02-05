@@ -5,3 +5,5 @@ openai
 numpy
 torch
 kneed
+matplotlib
+pillow

@@ -4,18 +4,17 @@ import argparse
 from pathlib import Path
 from tqdm import tqdm
 from openai import OpenAI
-from utils import *
+from utils import get_openai_key, read_jsonl, convert_ndarrays
 
-client = OpenAI(api_key = OPENAI_KEY)
+client = OpenAI(api_key=get_openai_key())
 content_path = Path('./')
 
 
-def get_embedding(dset, model='t5', is_single=False):
-    jsonl = read_jsonl(content_path / 'resources' / dset/ 'merged_gpt_results.jsonl')
+def get_embedding(dset, embedding_model='t5', inference_model='gpt-4-turbo', is_single=False):
+    jsonl = read_jsonl(content_path / 'resources' / dset/ f'{inference_model}_success.jsonl')
 
     print(f"{dset} : total {len(jsonl)} steps.")
     processed = []
-    split_jsonl = jsonl[len(processed):]
     
     for i in tqdm(jsonl):
         try:
@@ -45,33 +44,43 @@ def get_embedding(dset, model='t5', is_single=False):
             raw_kcs = [combined_kc]
         else:
             raw_kcs = res['knowledge_components']
+
+        valid_kcs = [kc for kc in raw_kcs if kc.get('description') and kc.get('name')]
         for kc in raw_kcs:
-            if 'description' not in kc or 'name' not in kc:
+            if kc not in valid_kcs:
                 print(kc)
-                continue
-            if model == 't5':
-                kc['embedding'] = model.encode(kc['description'])
-            elif model == 'openai_3':
+
+        if embedding_model == 't5':
+            for kc in valid_kcs:
+                kc['embedding'] = embedding_model.encode(kc['description'])
+            kcs = valid_kcs
+        elif embedding_model == 'openai_3':
+            if not valid_kcs:
+                kcs = []
+            else:
+                descriptions = [kc['description'] for kc in valid_kcs]
                 try:
                     r = client.embeddings.create(
-                          model="text-embedding-3-large",
-                          input=kc['description'],
-                          encoding_format="float"
-                        )
-                    kc['embedding'] = r.data[0].embedding
-                except KeyError as e:
-                    print(f"Unexpected response from opanai : {e}")
-                    continue
-            else:
-                raise ValueError('Invalid model name')
-            kcs.append(kc)
+                        model="text-embedding-3-large",
+                        input=descriptions,
+                        encoding_format="float",
+                    )
+                    for i, kc in enumerate(valid_kcs):
+                        kc['embedding'] = r.data[i].embedding
+                    kcs = valid_kcs
+                except (KeyError, IndexError) as e:
+                    print(f"Unexpected response from openai: {e}")
+                    kcs = []
+        else:
+            raise ValueError('Invalid model name')
+
         processed.append({
             'response': res,
             'kcs': kcs
         })
     try:
         single_postfix = '_single' if is_single else ''
-        json.dump(convert_ndarrays(processed), open(content_path / 'resources'/ dset/ f'processed_{model}{single_postfix}_embedings.json','w'))
+        json.dump(convert_ndarrays(processed), open(content_path / 'resources'/ dset/ f'processed_{embedding_model}{single_postfix}_embeddings.json','w'))
     except:
         return processed
     return processed
@@ -90,12 +99,18 @@ if __name__ == '__main__':
         help='The dataset string to be processed. Choices: ' + ', '.join(dataset_choices)
     )
     parser.add_argument(
-        'model', 
+        'embedding_model', 
         type=str, 
         choices=['t5', 'openai_3'],
-        default='t5',
+        default='openai_3',
         nargs='?',
         help='select embedding model. t5 or openai_3 '
+    )
+    parser.add_argument(
+        '--inference_model',
+        type=str,
+        default='gpt-4-turbo',
+        help='OpenAI inference model name (default: gpt-4-turbo).',
     )
     parser.add_argument(
         '--single_kc',
@@ -105,4 +120,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     target_dsets = [args.dataset] if args.dataset != 'all' else dataset_choices
     for dset in target_dsets:
-        get_embedding(dset,args.model,args.single_kc)
+        get_embedding(dset,args.embedding_model,args.inference_model,args.single_kc)

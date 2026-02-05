@@ -1,16 +1,13 @@
 import os
 import json
-import itertools
 
 from pathlib import Path
-import pandas as pd
 
 from bs4 import BeautifulSoup, Comment
 import re
 
 import argparse
-from openai_batch import parsed_data2batch_list
-from utils import *
+from utils import get_datashop_transaction
 
 def clean_text(text):
     text = re.sub(r'&#160;', ' ',text)
@@ -291,10 +288,3 @@ if __name__ == '__main__':
         print(f'Unmatched_problems: {len(valid_problems - problems)} / Original problems: {len(valid_problems)}')
         
         json.dump(parsed_data,open(os.path.join(content_path, 'resources' ,dset,'parsed_steps.json'),'w'))
-        
-        
-        batch_list = parsed_data2batch_list(parsed_data, dset_config, dset)
-        with open(os.path.join(content_path, 'resources' ,dset,'batch_input.jsonl'), 'w') as file:
-            for b in batch_list:
-                json_b = json.dumps(b)
-                file.write(json_b + '\n')

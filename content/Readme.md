@@ -36,14 +36,14 @@ To run this, an swf extractor, which can parse flash files into image files, is 
 ```bash
 python parse_data.py all
 ```
-This will produce 'resources/{dataset_name}/parsed_data.json' and 'resources/{dataset_name}/batch_input.jsonl'. The first file is a parsed content data, which allows you to use them to your further exploration. The jsonl file is a format that supports OpenAI batch inference. 
+This will produce 'resources/{dataset_name}/parsed_data.json'. This file is a parsed content data, which allows you to use them to your further exploration.
 
 4. Inference GPT by openai API.
 
 ```bash
 python openai_batch.py
 ```
-This will generate files for openai batch inference.
+This will generate files for openai batch inference. The jsonl file is a format that supports OpenAI batch inference. 
 
 ```bash
 python infer_openai.py
@@ -59,6 +59,10 @@ python reterive_openai.py
 This will recieve infernece result.
 
 5. Obtain text encoding
+```
+python calc_embedding.py
+```
+
 For clustering, run
 ```python
 python kc_clustering.py all openai_3
