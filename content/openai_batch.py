@@ -27,8 +27,12 @@ def step_part2text(step, part):
         'oli-image-hotspot': f"Click right hotspot from image on {step['key_str']}",
         'oli-short-answer': f"Write your answer on {step['key_str']}",
         'oli-numeric': f"Write your numeric answer on {step['key_str']}",
+        'oli-text': f"Text response on {step['key_str']}",
     }
-    text += step_type2explanation[step['step_type']]
+    text += step_type2explanation.get(
+        step['step_type'],
+        f"Answer the question on {step['key_str']}",
+    )
     if 'options' in step:
         if type(step['options'][0]) == str:
             text += '\nOptions:\n' + '\n'.join(step['options'])
@@ -51,20 +55,45 @@ def step_part2text(step, part):
     text += '\nFeedbacks:\n' + '\n'.join([f"{r.get('name')}: {r.get('text')}" for r in part['responses'] if r['class'][0] !='oli-no-response'])
     return text
 
-def recursive_decompose(images, parsed_list):
-    
+def get_image_resources_base(config: dict, dataset_key: str, file_path: str | None = None) -> str:
+    """Build image resources directory from config: content_data_path/subject/resources.
+    If file_path is given, use the subject from that path (so images are looked up in the
+    same subject as the question); otherwise use the first subject (single-subject datasets).
+    """
+    entry = config[dataset_key]
+    content_path = entry["content_data_path"].replace("/", os.sep)
+    if file_path:
+        normalized_fp = os.path.normpath(file_path).replace("/", os.sep)
+        if normalized_fp.startswith("." + os.sep):
+            normalized_fp = normalized_fp[2:]
+        if normalized_fp.startswith(content_path):
+            remainder = normalized_fp[len(content_path) :].lstrip(os.sep)
+            if remainder:
+                subject = remainder.split(os.sep)[0]
+                return os.path.join(entry["content_data_path"], subject, "resources")
+    subject = entry["subjects"][0]
+    return os.path.join(entry["content_data_path"], subject, "resources")
+
+
+def recursive_decompose(images, parsed_list, image_resources_base: str):
     for idx, content in enumerate(parsed_list):
         if content['type'] == 'text':
             for img_obj in images:
                 if img_obj['key_str'] in content['text']:
-                    image_path = './ds507_problem_content_2024_0404_184023/statics_v_1_15-prod-2013-01-10/resources/' + os.path.basename(img_obj['text'])
-                    base64_image = encode_image(image_path)                    
+                    basename = os.path.basename(img_obj['text'])
+                    image_path = os.path.join(image_resources_base, basename)
+                    if not os.path.isfile(image_path):
+                        return recursive_decompose(images, [
+                            ({'type':'text', 'text':c['text'].replace(img_obj['key_str'],'')} if c['type']=='text' else c )
+                            for c in parsed_list
+                        ], image_resources_base)
+                    base64_image = encode_image(image_path)
                     if not base64_image:
                         print(f"{os.path.basename(image_path)} is empty.")
                         return recursive_decompose(images, [
                             ({'type':'text', 'text':c['text'].replace(img_obj['key_str'],'')} if c['type']=='text' else c )
                             for c in parsed_list
-                        ])
+                        ], image_resources_base)
                     new_parsed_list = parsed_list[:idx] + [
                         {
                             'type': 'text',
@@ -81,17 +110,17 @@ def recursive_decompose(images, parsed_list):
                             'text': content['text'].split(img_obj['key_str'])[1]
                         },
                     ]+ parsed_list[idx+1:]
-                    return recursive_decompose(images, new_parsed_list)
+                    return recursive_decompose(images, new_parsed_list, image_resources_base)
     return parsed_list
             
 
-def question_to_prompt(question_obj):
+def question_to_prompt(question_obj, image_resources_base: str):
     prompts = []
     prompt_contents = [{
             "type": "text",
             "text": "Content:\n\n"+question_obj['question']
     }]
-    prompt_contents = recursive_decompose(question_obj['images'],prompt_contents)
+    prompt_contents = recursive_decompose(question_obj['images'], prompt_contents, image_resources_base)
     for step in question_obj['steps']:
         step_prompt = [_ for _ in prompt_contents]
         matched_part = None
@@ -109,10 +138,13 @@ def question_to_prompt(question_obj):
         prompts.append(step_prompt)
     return prompts
 
-def parsed_data2batch_list(parsed_data):
+def parsed_data2batch_list(parsed_data, config: dict, dataset_key: str):
     batch_list = []
     for idx, question_content in enumerate(parsed_data):
-        user_conts = question_to_prompt(question_content)
+        image_resources_base = get_image_resources_base(
+            config, dataset_key, question_content.get("file_path")
+        )
+        user_conts = question_to_prompt(question_content, image_resources_base)
         for step_idx, user_cont in enumerate(user_conts):
             payload = {
                 "model": "gpt-4-turbo",
@@ -147,8 +179,21 @@ def parsed_data2batch_list(parsed_data):
     return batch_list
 
 if __name__ == '__main__':
+    import argparse
+    with open('config.json') as f:
+        config = json.load(f)
+    parser = argparse.ArgumentParser(description='Build batch list from parsed steps')
+    parser.add_argument(
+        'dataset',
+        type=str,
+        choices=list(config.keys()),
+        nargs='?',
+        default='oli_statics',
+        help='Dataset key (must match parse_data.py argument). Choices: ' + ', '.join(config.keys()),
+    )
+    args = parser.parse_args()
     parsed_data = json.load(open('parsed_steps.json'))
-    batch_list = parsed_data2batch_list(parsed_data)
+    batch_list = parsed_data2batch_list(parsed_data, config, args.dataset)
     with open('gpt4_batch.jsonl', 'w') as file:
         for b in batch_list:
             json_b = json.dumps(b)
