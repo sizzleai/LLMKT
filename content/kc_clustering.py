@@ -28,7 +28,7 @@ dset_config = json.load(open(os.path.join(content_path,'config.json')))
 def evaluate_clustering(dset, model_name, is_single_only=False):
     if is_single_only:
         model_name = model_name + '_single'
-    processed = json.load(open(content_path / 'resources'/ dset/ f'processed_{model_name}_embedings.json'))
+    processed = json.load(open(content_path / 'resources'/ dset/ f'processed_{model_name}_embeddings.json'))
     print(dset)
     descriptions = []
     embeddings = []
@@ -43,40 +43,47 @@ def evaluate_clustering(dset, model_name, is_single_only=False):
             cnt += 1
     wcss = []
     silhouette_scores = []
+    n_samples = len(embeddings)
+    print(f"Total number of KCs: {n_samples}")
 
+    # silhouette_score requires n_clusters in [2, n_samples - 1]
+    max_clusters = min(100, n_samples - 1)
+    if max_clusters < 2:
+        raise ValueError(f"Need at least 3 samples to cluster (got {n_samples})")
 
-    for i in tqdm(range(2, 100)): 
+    for i in tqdm(range(2, max_clusters + 1)):
         kmeans = KMeans(n_clusters=i, random_state=42)
         kmeans.fit(embeddings)
         wcss.append(kmeans.inertia_)
         silhouette_scores.append(silhouette_score(embeddings, kmeans.labels_))
 
+    n_clusters_tried = list(range(2, max_clusters + 1))
     json.dump({'wcss':wcss,'silhouette': silhouette_scores}, open(content_path / 'resources'/ dset/ f'{model_name}_cluster_scores.json','w'))
     plt.rc('font', family='Times New Roman')
     # Plot WCSS to find the elbow
     plt.figure(figsize=(12, 4))
-    plt.suptitle(f'{dset}', fontsize=16) 
+    plt.suptitle(f'{dset}', fontsize=16)
     plt.subplot(1, 2, 1)
-    plt.plot(range(2, 200), wcss)
+    plt.plot(n_clusters_tried, wcss)
     plt.title('Elbow Method')
     plt.xlabel('Number of clusters')
     plt.ylabel('WCSS')
 
     # Plot Silhouette Scores
     plt.subplot(1, 2, 2)
-    plt.plot(range(2, 200), silhouette_scores)
+    plt.plot(n_clusters_tried, silhouette_scores)
     plt.title('Silhouette Score')
     plt.xlabel('Number of clusters')
     plt.ylabel('Score')
-    plt.tight_layout(rect=[0, 0, 1, 1])    
+    plt.tight_layout(rect=[0, 0, 1, 1])
     plt.savefig(f'figures/{model_name}_{dset}_clustering_score.png', dpi=1200)
     plt.savefig(f'figures/{model_name}_{dset}_clustering_score.pdf', dpi=1200)
-    knee_locator = KneeLocator(range(2,200), wcss, curve='convex', direction='decreasing')
+    knee_locator = KneeLocator(n_clusters_tried, wcss, curve='convex', direction='decreasing')
     # elbow_point = knee_locator.elbow
     # print(f'Picked elbow: {elbow_point}')
 # We tried to use elbow_point, but since it's not stable, we decided to use silhouette_scores instead.
 
-    optimal_clusters = find_max_indices(silhouette_scores) + 2
+    optimal_clusters = n_clusters_tried[find_max_indices(silhouette_scores)]
     kmeans = KMeans(n_clusters=optimal_clusters, random_state=42)
     kmeans.fit(embeddings)
     clusters = kmeans.labels_
@@ -136,7 +143,7 @@ if __name__ == '__main__':
         'model', 
         type=str, 
         choices=['t5', 'openai_3'],
-        default='t5',
+        default='openai_3',
         nargs='?',
         help='select embedding model. t5 or openai_3 '
     )

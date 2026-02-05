@@ -1,10 +1,11 @@
 import base64
-import requests
+from pathlib import Path
 import json
 import os
 from PIL import Image
 import numpy as np
 from utils import *
+import argparse
 
 def load_and_save_image(image_path, output_path):
     image = Image.open(image_path)
@@ -138,7 +139,7 @@ def question_to_prompt(question_obj, image_resources_base: str):
         prompts.append(step_prompt)
     return prompts
 
-def parsed_data2batch_list(parsed_data, config: dict, dataset_key: str):
+def parsed_data2batch_list(parsed_data, config: dict, dataset_key: str, model: str = "gpt-4-turbo"):
     batch_list = []
     for idx, question_content in enumerate(parsed_data):
         image_resources_base = get_image_resources_base(
@@ -147,7 +148,7 @@ def parsed_data2batch_list(parsed_data, config: dict, dataset_key: str):
         user_conts = question_to_prompt(question_content, image_resources_base)
         for step_idx, user_cont in enumerate(user_conts):
             payload = {
-                "model": "gpt-4-turbo",
+                "model": model,
                 'response_format':{ "type": "json_object" },
                 'seed': 42,
                 "messages": [
@@ -179,9 +180,9 @@ def parsed_data2batch_list(parsed_data, config: dict, dataset_key: str):
     return batch_list
 
 if __name__ == '__main__':
-    import argparse
     with open('config.json') as f:
         config = json.load(f)
+    content_path = Path('./')
     parser = argparse.ArgumentParser(description='Build batch list from parsed steps')
     parser.add_argument(
         'dataset',
@@ -191,10 +192,17 @@ if __name__ == '__main__':
         default='oli_statics',
         help='Dataset key (must match parse_data.py argument). Choices: ' + ', '.join(config.keys()),
     )
+    parser.add_argument(
+        '--model',
+        type=str,
+        default='gpt-4-turbo',
+        help='OpenAI model name for chat completions (default: gpt-4-turbo).',
+    )
     args = parser.parse_args()
-    parsed_data = json.load(open('parsed_steps.json'))
-    batch_list = parsed_data2batch_list(parsed_data, config, args.dataset)
-    with open('gpt4_batch.jsonl', 'w') as file:
+    dataset_path = content_path / 'resources' / args.dataset
+    parsed_data = json.load(open(dataset_path / 'parsed_steps.json'))
+    batch_list = parsed_data2batch_list(parsed_data, config, args.dataset, model=args.model)
+    with open(dataset_path / f'{args.model}_batch.jsonl', 'w') as file:
         for b in batch_list:
             json_b = json.dumps(b)
             file.write(json_b + '\n')

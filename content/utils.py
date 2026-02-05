@@ -3,10 +3,9 @@ import os
 import numpy as np
 import pandas as pd
 
-OPENAI_KEY = ''
 
 def get_openai_key():
-    return OPENAI_KEY
+    return os.getenv('OPENAI_KEY') or os.getenv('OPENAI_API_KEY')
 
 def parse_jsonl(file):
     data_list = [json.loads(line) for line in file.split('\n') if line.strip()]
