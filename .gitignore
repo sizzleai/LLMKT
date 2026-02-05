@@ -1,0 +1,4 @@
+__pycache__/
+content/resources/*/ds*
+content/resources/*/parsed_steps.json
+content/resources/*/batch_input.jsonl

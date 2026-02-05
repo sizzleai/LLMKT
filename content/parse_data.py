@@ -293,7 +293,7 @@ if __name__ == '__main__':
         json.dump(parsed_data,open(os.path.join(content_path, 'resources' ,dset,'parsed_steps.json'),'w'))
         
         
-        batch_list = parsed_data2batch_list(parsed_data)
+        batch_list = parsed_data2batch_list(parsed_data, dset_config, dset)
         with open(os.path.join(content_path, 'resources' ,dset,'batch_input.jsonl'), 'w') as file:
             for b in batch_list:
                 json_b = json.dumps(b)
