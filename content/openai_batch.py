@@ -195,8 +195,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--model',
         type=str,
-        default='gpt-4-turbo',
-        help='OpenAI model name for chat completions (default: gpt-4-turbo).',
+        default='gpt-4o',
+        help='OpenAI model name for chat completions (default: gpt-4o).',
     )
     args = parser.parse_args()
     dataset_path = content_path / 'resources' / args.dataset

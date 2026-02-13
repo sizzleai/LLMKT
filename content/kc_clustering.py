@@ -125,7 +125,7 @@ def evaluate_clustering(dset, model_name, is_single_only=False):
             for kc in i['kcs']:
                 kc['kc_id'] = idx2cluster[kc['id']]
                 kc['kc_name'] = cluster_id2name[kc['kc_id']]
-    json.dump(convert_ndarrays(processed), open(content_path / 'resources'/ dset/ f'{model_name}_processed_embedings.json','w'))
+    json.dump(convert_ndarrays(processed), open(content_path / 'resources'/ dset/ f'{model_name}_processed_kcs.json','w'))
     json.dump(cluster_id2name, open(content_path / 'resources'/ dset/ f'{model_name}_cluster_id2name.json','w'))
     
 if __name__ == '__main__':
