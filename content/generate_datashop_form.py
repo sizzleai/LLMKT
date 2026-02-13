@@ -25,11 +25,11 @@ def get_part_input(parsed_data, content_id, qid, step_id):
                     return part['input']
 
 
-def generate_datashop_txt(dset, model_name, is_single_kc = False):
+def generate_datashop_txt(dset, model_name, inference_model, is_single_kc = False):
     transaction_data = get_datashop_transaction(os.path.join(content_path,dset_config[dset]['transaction_path']))
     if is_single_kc:
         model_name = model_name + '_single'
-    processed = json.load(open(os.path.join(content_path,'resources', dset, f'{model_name}_processed_embedings.json'))) # order is same with gpt4_complete
+    processed = json.load(open(os.path.join(content_path,'resources', dset, f'{model_name}_processed_kcs.json'))) # order is same with gpt4_complete
     parsed_data = json.load(open(os.path.join(content_path,'resources', dset, 'parsed_steps.json')))
     cnt = 0
     content_data = []
@@ -100,7 +100,7 @@ def generate_datashop_txt(dset, model_name, is_single_kc = False):
             print('No tags: ',c)
             return np.nan
         return '~~'.join([ str(i) for i in set(c['tags'])])
-    jsonl = read_jsonl(os.path.join(content_path,'resources', dset, 'merged_gpt_results.jsonl'))
+    jsonl = read_jsonl(os.path.join(content_path,'resources', dset, f'{inference_model}_success.jsonl'))
 
     batch_id2kcs= {}
     for j, p in zip(jsonl, processed):
@@ -113,13 +113,13 @@ def generate_datashop_txt(dset, model_name, is_single_kc = False):
             c['tags'] = batch_id2kcs[c['batch_id']]
             final_content_data.append(c)
 
-    json.dump(final_content_data, open(os.path.join(content_path,'resources', dset, f'{model_name}_content_data.json'),'w'))
+    json.dump(final_content_data, open(os.path.join(content_path,'resources', dset, f'{inference_model}_content_data.json'),'w'))
     transaction_data['KC (Ours)'] = transaction_data.apply(process, axis=1)
     print(len(transaction_data))
     new_df = transaction_data.dropna(subset=['KC (Ours)'])
     print(len(new_df))
-    new_df.to_csv(os.path.join(content_path,'resources', dset, f'{model_name}_datashop_form.txt'), sep='\t', index=False)
-    transaction_to_student_step(open(os.path.join(content_path,'resources', dset, f'{model_name}_datashop_form.txt'),'r'))
+    new_df.to_csv(os.path.join(content_path,'resources', dset, f'{inference_model}_datashop_form.txt'), sep='\t', index=False)
+    transaction_to_student_step(open(os.path.join(content_path,'resources', dset, f'{inference_model}_datashop_form.txt'),'r'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Get dataset name')
@@ -142,6 +142,12 @@ if __name__ == '__main__':
         help='select embedding model. t5 or openai_3 '
     )
     parser.add_argument(
+        '--inference_model',
+        type=str,
+        default='gpt-4o',
+        help='OpenAI inference model name (default: gpt-4o).',
+    )
+    parser.add_argument(
         '--single_kc',
         action='store_true',
         help='Disable multiple KCs'
@@ -149,4 +155,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     target_dsets = [args.dataset] if args.dataset != 'all' else dataset_choices
     for dset in target_dsets:
-        generate_datashop_txt(dset, args.model, args.single_kc)
+        generate_datashop_txt(dset, args.model, args.inference_model, args.single_kc)
